@@ -6,7 +6,8 @@ export type SectionId =
   | 'folder-structure'
   | 'user-flow'
   | 'metrics'
-  | 'roadmap';
+  | 'roadmap'
+  | 'voice-config';
 
 export interface Section {
   id: SectionId;

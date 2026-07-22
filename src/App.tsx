@@ -23,6 +23,7 @@ import WorkflowDiagram from './components/WorkflowDiagram';
 import PermissionsGrid from './components/PermissionsGrid';
 import CommandLog from './components/CommandLog';
 import SimulateModal from './components/SimulateModal';
+import VoiceSettings from './components/VoiceSettings';
 
 const Icons: Record<string, React.ElementType> = {
   Cpu,
@@ -33,6 +34,7 @@ const Icons: Record<string, React.ElementType> = {
   Workflow,
   Map: MapIcon,
   Activity,
+  Mic,
 };
 
 function MarkdownRenderer({ content, sectionId }: { content: string, sectionId: SectionId }) {
@@ -106,6 +108,7 @@ function MarkdownRenderer({ content, sectionId }: { content: string, sectionId: 
       {sectionId === 'metrics' && <MetricsVisualization />}
       {sectionId === 'user-flow' && <WorkflowDiagram />}
       {sectionId === 'permissions' && <PermissionsGrid />}
+      {sectionId === 'voice-config' && <VoiceSettings />}
     </div>
   );
 }
@@ -116,6 +119,96 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [isSimulateModalOpen, setIsSimulateModalOpen] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const recognitionRef = React.useRef<any>(null);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        handleVoiceCommand(transcript);
+      };
+      
+      recognitionRef.current.onerror = (event: any) => {
+        if (event.error === 'no-speech') {
+          speak("I didn't catch that. Could you repeat?", () => {
+            if (recognitionRef.current) {
+              try { recognitionRef.current.start(); setIsListening(true); } catch(e){}
+            }
+          });
+        } else {
+          showToast(`Speech recognition error: ${event.error}`);
+          setIsListening(false);
+        }
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false);
+      };
+    }
+  }, []);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const speak = (text: string, onEnd?: () => void) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = parseFloat(localStorage.getItem('speechRate') || '1.0');
+      utterance.onend = () => {
+        if (onEnd) onEnd();
+      };
+      window.speechSynthesis.speak(utterance);
+    } else {
+      if (onEnd) onEnd();
+    }
+  };
+
+  const handleVoiceCommand = (transcript: string) => {
+    setIsListening(false);
+    window.dispatchEvent(new CustomEvent('new-command', { detail: { text: transcript, source: 'voice' } }));
+    
+    setTimeout(() => {
+      speak("Executing command.", () => {
+        if (recognitionRef.current) {
+          try {
+            recognitionRef.current.start();
+            setIsListening(true);
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      });
+    }, 1500);
+  };
+
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+    } else {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+          setIsListening(true);
+        } catch (e) {
+          console.error(e);
+          showToast("Failed to start listening.");
+        }
+      } else {
+        showToast("Speech recognition is not supported in this browser.");
+      }
+    }
+  };
 
   const filteredSections = useMemo(() => {
     if (!searchQuery) return SECTIONS;
@@ -130,6 +223,21 @@ export default function App() {
   return (
     <div className="flex h-screen bg-[#020408] text-[#00D1FF] overflow-hidden font-mono selection:bg-[#00D1FF]/30 selection:text-white p-4">
       <div className="flex w-full h-full border-4 border-[#00425A] overflow-hidden relative">
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: -20, x: '-50%' }}
+            className="fixed top-10 left-1/2 z-50 bg-[#FF4B4B]/10 border border-[#FF4B4B] text-[#FF4B4B] px-4 py-2 text-xs font-mono uppercase tracking-widest shadow-[0_0_15px_rgba(255,75,75,0.2)] flex items-center gap-2"
+          >
+            <AlertOctagon className="w-4 h-4" />
+            {toastMessage}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Sidebar - Desktop */}
       <aside className="hidden md:flex flex-col w-80 bg-[#020408] border-r border-[#00D1FF]/30 z-20">
         <div className="p-8 pb-4 mb-6 border-b border-[#00D1FF]/30">
@@ -283,6 +391,21 @@ export default function App() {
               className="w-full bg-[#00D1FF]/5 border border-[#00D1FF]/20 text-white text-xs py-2.5 pl-10 pr-4 focus:outline-none focus:border-[#00D1FF]/50 transition-colors placeholder:text-[#00D1FF]/40"
             />
           </div>
+
+          <AnimatePresence>
+            {isListening && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                className="flex items-center gap-2 bg-[#FF4B4B]/10 border border-[#FF4B4B]/50 px-3 py-1.5 text-[10px] text-[#FF4B4B] font-mono uppercase tracking-widest shadow-[0_0_15px_rgba(255,75,75,0.2)]"
+              >
+                <span className="w-2 h-2 rounded-full bg-[#FF4B4B] animate-ping" />
+                Listening...
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div className="flex gap-4 items-center">
             <div className="text-right">
               <div className="text-lg font-light text-white">14:28:42</div>
@@ -335,21 +458,27 @@ export default function App() {
 
         {/* FAB */}
         <button
-          onClick={() => setIsSimulateModalOpen(true)}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 md:bottom-10 md:left-[calc(50%+10rem)] z-40 bg-[#00D1FF]/10 border border-[#00D1FF]/50 hover:bg-[#00D1FF]/20 text-white rounded-full p-4 shadow-[0_0_20px_rgba(0,209,255,0.3)] transition-all group backdrop-blur-sm flex items-center gap-3 cursor-pointer"
+          onClick={toggleListening}
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 md:bottom-10 md:left-[calc(50%+10rem)] z-40 transition-all group backdrop-blur-sm flex items-center gap-3 cursor-pointer rounded-full p-4 border ${isListening ? 'bg-[#FF4B4B]/20 border-[#FF4B4B] shadow-[0_0_30px_rgba(255,75,75,0.4)] scale-110' : 'bg-[#00D1FF]/10 border-[#00D1FF]/50 hover:bg-[#00D1FF]/20 shadow-[0_0_20px_rgba(0,209,255,0.3)]'}`}
         >
           <div className="relative">
-            <div className="absolute inset-0 bg-[#00FF94] rounded-full blur-sm opacity-50 group-hover:opacity-100 transition-opacity" />
-            <Mic className="w-6 h-6 text-[#00FF94] relative z-10" />
+            {isListening ? (
+              <div className="absolute inset-0 bg-[#FF4B4B] rounded-full blur-md opacity-60 animate-ping" />
+            ) : (
+              <div className="absolute inset-0 bg-[#00FF94] rounded-full blur-sm opacity-50 group-hover:opacity-100 transition-opacity" />
+            )}
+            <Mic className={`w-6 h-6 relative z-10 ${isListening ? 'text-[#FF4B4B]' : 'text-[#00FF94]'}`} />
           </div>
-          <span className="font-bold text-xs tracking-widest uppercase hidden md:inline-block pr-2 font-mono">Simulate Command</span>
+          <span className={`font-bold text-xs tracking-widest uppercase hidden md:inline-block pr-2 font-mono ${isListening ? 'text-[#FF4B4B]' : 'text-white'}`}>
+            {isListening ? 'Listening...' : 'Simulate Command'}
+          </span>
         </button>
       </main>
       <CommandLog />
       <SimulateModal 
         isOpen={isSimulateModalOpen} 
         onClose={() => setIsSimulateModalOpen(false)}
-        onSimulate={(cmd) => window.dispatchEvent(new CustomEvent('simulate-command', { detail: cmd }))}
+        onSimulate={(cmd) => window.dispatchEvent(new CustomEvent('new-command', { detail: { text: cmd, source: 'simulate' } }))}
       />
     </div>
     </div>

@@ -11,6 +11,7 @@ export const SECTIONS: Section[] = [
   { id: 'user-flow', title: 'Execution & User Flow', icon: 'Workflow', isOfflineAvailable: false },
   { id: 'metrics', title: 'System Metrics', icon: 'Activity', isOfflineAvailable: true },
   { id: 'roadmap', title: 'Phased Roadmap', icon: 'Map', isOfflineAvailable: true },
+  { id: 'voice-config', title: 'Voice & Speech', icon: 'Mic', isOfflineAvailable: true },
 ];
 
 export const CONTENT_DATA = {
@@ -192,6 +193,12 @@ Real-time observation of device subsystems is crucial for JARVIS to manage its b
 *   Implement the \`ActionExecutor\` queue to handle arrays of sequential tasks and handle interruptions (like asking for clarification).
 *   Add confirmation gates for destructive actions (Emails, SMS).
 *   Beta testing, security audits, and battery optimization profiling.
+    `,
+  },
+  'voice-config': {
+    title: 'Voice Engine Configuration',
+    content: `
+Configure the Speech-to-Text (STT) and Text-to-Speech (TTS) parameters for the JARVIS simulation.
     `
   }
 };

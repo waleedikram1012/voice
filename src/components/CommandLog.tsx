@@ -42,13 +42,13 @@ export default function CommandLog() {
 
     const handleSimulate = (e: Event) => {
       const customEvent = e as CustomEvent;
-      const command = customEvent.detail;
+      const { text: command, source } = customEvent.detail;
       
       setIsExpanded(true);
 
       const newLogs = [
-        { text: "Simulated Input Detected...", type: "system", delay: 500 },
-        { text: `Input: "${command}"`, type: "user", delay: 1500 },
+        { text: source === 'voice' ? "Audio Input Detected..." : "Simulated Input Detected...", type: "system", delay: 500 },
+        { text: source === 'voice' ? `Transcription: "${command}"` : `Input: "${command}"`, type: "user", delay: 1500 },
         { text: "Routing to Local LLM Intent Parser...", type: "system", delay: 2500 },
         { text: "Intent Identified: MULTI_STEP_AUTOMATION", type: "success", delay: 4000 },
         { text: "Pushing actions to Accessibility Queue...", type: "system", delay: 5000 },
@@ -61,9 +61,10 @@ export default function CommandLog() {
       playLogs(newLogs);
     };
 
-    window.addEventListener('simulate-command', handleSimulate);
+    window.addEventListener('new-command', handleSimulate);
+
     return () => {
-      window.removeEventListener('simulate-command', handleSimulate);
+      window.removeEventListener('new-command', handleSimulate);
       timeouts.forEach(clearTimeout);
     };
   }, []);
