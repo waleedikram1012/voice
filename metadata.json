@@ -1,0 +1,6 @@
+{
+  "name": "JARVIS System Architecture",
+  "description": "Architectural documentation and technical blueprint for a next-generation Android AI voice assistant.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
